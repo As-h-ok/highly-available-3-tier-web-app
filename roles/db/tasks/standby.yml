@@ -1,0 +1,20 @@
+- name: Check for existing data
+  ansible.builtin.stat:
+    path: /var/lib/pgsql/data/PG_VERSION
+  register: pg_data
+
+- name: Copy the primary (only if empty)
+  ansible.builtin.command: >
+    pg_basebackup -h {{ primary_ip }} -U {{ repl_user }}
+    -D /var/lib/pgsql/data -R -X stream -C -S {{ inventory_hostname }}_slot
+  become_user: postgres
+  environment:
+    PGPASSWORD: "{{ repl_password }}"
+  when: not pg_data.stat.exists
+  no_log: true
+
+- name: Start standby
+  ansible.builtin.systemd:
+    name: postgresql
+    state: started
+    enabled: true

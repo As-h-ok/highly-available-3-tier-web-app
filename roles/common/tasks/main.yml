@@ -1,0 +1,16 @@
+- name: Install base packages
+  ansible.builtin.dnf:
+    name: [vim-enhanced, chrony, firewalld, policycoreutils-python-utils]
+    state: present
+
+- name: Start and enable base services
+  ansible.builtin.systemd:
+    name: "{{ item }}"
+    state: started
+    enabled: true
+  loop: [chronyd, firewalld]
+
+- name: Keep SELinux enforcing
+  ansible.posix.selinux:
+    policy: targeted
+    state: enforcing

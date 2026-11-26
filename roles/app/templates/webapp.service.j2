@@ -1,0 +1,15 @@
+[Unit]
+Description=Flask web app (Gunicorn)
+After=network-online.target
+Wants=network-online.target
+
+[Service]
+User=webapp
+Group=webapp
+WorkingDirectory=/opt/webapp
+EnvironmentFile=/etc/webapp.env
+ExecStart=/opt/webapp/venv/bin/gunicorn --workers 2 --bind 127.0.0.1:8000 app:app
+Restart=on-failure
+
+[Install]
+WantedBy=multi-user.target

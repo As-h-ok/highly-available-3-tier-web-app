@@ -1,0 +1,64 @@
+- name: Initialise the database
+  ansible.builtin.command: postgresql-setup --initdb
+  args:
+    creates: /var/lib/pgsql/data/PG_VERSION
+
+- name: Listen on the network
+  ansible.builtin.lineinfile:
+    path: /var/lib/pgsql/data/postgresql.conf
+    regexp: "^#?listen_addresses"
+    line: "listen_addresses = '*'"
+  notify: Restart postgresql
+
+- name: Set client access rules
+  ansible.builtin.blockinfile:
+    path: /var/lib/pgsql/data/pg_hba.conf
+    block: |
+      {% for h in groups['db'] %}
+      host replication {{ repl_user }} {{ hostvars[h].ansible_host }}/32 scram-sha-256
+      {% endfor %}
+      {% for h in groups['app'] %}
+      host {{ db_name }} {{ db_user }} {{ hostvars[h].ansible_host }}/32 scram-sha-256
+      {% endfor %}
+  notify: Restart postgresql
+
+- name: Start PostgreSQL
+  ansible.builtin.systemd:
+    name: postgresql
+    state: started
+    enabled: true
+
+- name: Apply configuration now
+  ansible.builtin.meta: flush_handlers
+
+- name: Create replication user
+  community.postgresql.postgresql_user:
+    name: "{{ repl_user }}"
+    password: "{{ repl_password }}"
+    role_attr_flags: REPLICATION,LOGIN
+  become_user: postgres
+  no_log: true
+
+- name: Create application user
+  community.postgresql.postgresql_user:
+    name: "{{ db_user }}"
+    password: "{{ db_password }}"
+  become_user: postgres
+  no_log: true
+
+- name: Create application database
+  community.postgresql.postgresql_db:
+    name: "{{ db_name }}"
+    owner: "{{ db_user }}"
+  become_user: postgres
+
+- name: Create visits table
+  community.postgresql.postgresql_table:
+    login_db: "{{ db_name }}"
+    name: visits
+    owner: "{{ db_user }}"
+    columns:
+      - id serial primary key
+      - served_by text not null
+      - created_at timestamptz default now()
+  become_user: postgres

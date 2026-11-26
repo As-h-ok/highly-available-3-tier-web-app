@@ -1,0 +1,20 @@
+- name: Install PostgreSQL 16
+  ansible.builtin.dnf:
+    name: ["@postgresql:16/server", python3-psycopg2]
+    state: present
+
+- name: Allow port 5432 from app and db servers only
+  ansible.posix.firewalld:
+    rich_rule: 'rule family="ipv4" source address="{{ hostvars[item].ansible_host }}" port port="5432" protocol="tcp" accept'
+    permanent: true
+    immediate: true
+    state: enabled
+  loop: "{{ groups['app'] + groups['db'] }}"
+
+- name: Configure primary
+  ansible.builtin.include_tasks: primary.yml
+  when: inventory_hostname in groups['db_primary']
+
+- name: Configure standby
+  ansible.builtin.include_tasks: standby.yml
+  when: inventory_hostname in groups['db_standby']

@@ -1,15 +1,19 @@
-- hosts: all
+- name: Common setup
+  hosts: all
   become: true
   roles: [common]
 
-- hosts: db
+- name: Database tier
+  hosts: db
   become: true
   roles: [db]
 
-- hosts: app
+- name: App tier
+  hosts: app
   become: true
   roles: [app]
 
-- hosts: lb
+- name: Load balancer tier
+  hosts: lb
   become: true
   roles: [loadbalancer]

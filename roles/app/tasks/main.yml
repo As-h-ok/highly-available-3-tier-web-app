@@ -1,0 +1,75 @@
+- name: Install packages
+  ansible.builtin.dnf:
+    name: [nginx, python3, python3-pip]
+    state: present
+
+- name: Create service user
+  ansible.builtin.user:
+    name: webapp
+    system: true
+    shell: /sbin/nologin
+
+- name: Create app directory
+  ansible.builtin.file:
+    path: /opt/webapp
+    state: directory
+    mode: "0755"
+
+- name: Copy application files
+  ansible.builtin.copy:
+    src: "{{ item }}"
+    dest: "/opt/webapp/{{ item }}"
+    mode: "0644"
+  loop: [app.py, requirements.txt]
+  notify: Restart webapp
+
+- name: Install Python libraries in a virtualenv
+  ansible.builtin.pip:
+    requirements: /opt/webapp/requirements.txt
+    virtualenv: /opt/webapp/venv
+    virtualenv_command: python3 -m venv
+  notify: Restart webapp
+
+- name: Write environment file
+  ansible.builtin.template:
+    src: webapp.env.j2
+    dest: /etc/webapp.env
+    group: webapp
+    mode: "0640"
+  no_log: true
+  notify: Restart webapp
+
+- name: Install systemd unit
+  ansible.builtin.template:
+    src: webapp.service.j2
+    dest: /etc/systemd/system/webapp.service
+    mode: "0644"
+  notify: Restart webapp
+
+- name: Configure Nginx
+  ansible.builtin.copy:
+    src: nginx.conf
+    dest: /etc/nginx/nginx.conf
+    mode: "0644"
+  notify: Reload nginx
+
+- name: Let Nginx connect to Gunicorn (SELinux)
+  ansible.posix.seboolean:
+    name: httpd_can_network_connect
+    state: true
+    persistent: true
+
+- name: Start services
+  ansible.builtin.systemd:
+    name: "{{ item }}"
+    state: started
+    enabled: true
+    daemon_reload: true
+  loop: [webapp, nginx]
+
+- name: Open HTTP
+  ansible.posix.firewalld:
+    service: http
+    permanent: true
+    immediate: true
+    state: enabled
