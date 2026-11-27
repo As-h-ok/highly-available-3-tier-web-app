@@ -13,7 +13,7 @@
 
 - name: Configure keepalived
   ansible.builtin.template:
-    src: keepalived.conf.j2
+    src: keepalived.cfg.j2
     dest: /etc/keepalived/keepalived.conf
     mode: "0600"
   no_log: true
