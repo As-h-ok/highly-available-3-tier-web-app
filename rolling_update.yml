@@ -1,0 +1,41 @@
+- name: Rolling update of the app tier
+  hosts: app
+  become: true
+  serial: 1
+  any_errors_fatal: true
+
+  pre_tasks:
+    - name: Drain this server on both load balancers
+      community.general.haproxy:
+        state: drain
+        host: "{{ inventory_hostname }}"
+        backend: app_back
+        socket: /var/lib/haproxy/stats
+        wait: true
+      delegate_to: "{{ item }}"
+      loop: "{{ groups['lb'] }}"
+
+  roles: [app]
+
+  post_tasks:
+    - name: Restart services now
+      ansible.builtin.meta: flush_handlers
+
+    - name: Wait for the new version to be healthy
+      ansible.builtin.uri:
+        url: http://127.0.0.1/health
+        return_content: true
+      register: health
+      until: health.status == 200 and health.json.version == app_version
+      retries: 10
+      delay: 3
+
+    - name: Put the server back
+      community.general.haproxy:
+        state: enabled
+        host: "{{ inventory_hostname }}"
+        backend: app_back
+        socket: /var/lib/haproxy/stats
+        wait: true
+      delegate_to: "{{ item }}"
+      loop: "{{ groups['lb'] }}"

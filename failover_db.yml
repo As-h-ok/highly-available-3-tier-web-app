@@ -1,0 +1,19 @@
+- name: Promote the standby
+  hosts: db_standby
+  become: true
+  tasks:
+    - name: Check whether the primary answers
+      ansible.builtin.wait_for:
+        host: "{{ primary_ip }}"
+        port: 5432
+        timeout: 5
+      register: primary_check
+      ignore_errors: true
+
+    - name: Refuse to promote if the primary is alive
+      ansible.builtin.assert:
+        that: primary_check is failed
+
+    - name: Promote
+      ansible.builtin.command: psql -c "SELECT pg_promote();"
+      become_user: postgres
